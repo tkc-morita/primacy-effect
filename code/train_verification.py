@@ -251,7 +251,7 @@ if __name__=='__main__':
 
 	parser.add_argument('--encode_inout_phase', action='store_true', help='Provide the model with an auxiliary input sequence binary-encoding the input vs. output phase.')
 
-	parser.add_argument('--model_name', type=str, required=True, choices=['RNN','GRU','LSTM','Transformer','S4','HiPPO','Frozen','Mamba'], help='Type of sequence model.')
+	parser.add_argument('--model_name', type=str, required=True, choices=['RNN','GRU','LSTM','Transformer','S4','HiPPO','Mamba'], help='Type of sequence model.')
 	parser.add_argument('--hidden_size', type=int, default=512, help='Dimensionality of hidden layer(s) in RNN/Transformer/SSM.')
 	parser.add_argument('--output_feature_size', type=int, default=32, help='Dimensionality of output feature vectors.')
 	# parser.add_argument('--embed_size', type=int, default=None, help='Dimensionality of input (& time) embeddings. Equals to hidden_size if not specified.')
@@ -338,12 +338,6 @@ if __name__=='__main__':
 			init_args.update(dict(
 				# init='legs',
 				lr=dict(A=0.0,B=0.0), # NOTE: delta_t and C are still learnable.
-			))
-		elif args.model_name=='Frozen':
-			init_args.update(dict(
-				# init='legs',
-				lr=dict(A=0.0,B=0.0,C=0.0), # NOTE: Freeze everything but C.
-				# deterministic=True
 			))
 	elif args.model_name=='Mamba':
 		init_args.pop('dropout')
