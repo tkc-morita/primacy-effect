@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .transformer import Transformer
 from .ssm import S4,Mamba
+from .xlstm import xLSTM
 
 class Memorizer(nn.Module):
 	def __init__(self, model_name, vocab_size, hidden_size, output_size=None, extra_input_symbols=0,
@@ -22,6 +23,8 @@ class Memorizer(nn.Module):
 			self.seq_model = S4(d_model=hidden_size, **kwargs)
 		elif model_name=='Mamba':
 			self.seq_model = Mamba(d_model=hidden_size, **kwargs)
+		elif model_name=='xLSTM':
+			self.seq_model = xLSTM(d_model=hidden_size, **kwargs)
 		elif model_name in ['RNN','GRU','LSTM']:
 			self.seq_model = getattr(nn, model_name)(input_size=hidden_size, hidden_size=hidden_size,
 													batch_first=True, **kwargs)

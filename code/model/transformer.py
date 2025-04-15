@@ -20,7 +20,9 @@ class Transformer(nn.Module):
 		"""
 		if not self.pos_enc is None:
 			x = x + self.pos_enc(x)
-		x = self.net(x, is_causal=self.is_causal)
+		mask = nn.Transformer.generate_square_subsequent_mask(x.size(1), x.device) \
+				if self.is_causal else None
+		x = self.net(x, is_causal=self.is_causal, mask=mask)
 		return x
 
 class SinusoidalPositionEncoder(nn.Module):

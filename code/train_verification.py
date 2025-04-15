@@ -57,7 +57,6 @@ class Learner(_Learner):
 		query_order,query = self._reshuffle(sequence)
 		target,query = self._replace(query)
 
-		# vocab_size = self.checkpoint['modules']['model']['init_args']['vocab_size']
 		input = torch.cat([sequence,query], dim=1)
 		phase = torch.cat([torch.zeros_like(sequence),torch.ones_like(query)], dim=1) \
 				if self.checkpoint['modules']['model']['init_args'].get('encode_phase', False) \
@@ -94,7 +93,6 @@ class Learner(_Learner):
 
 	def test(self, whole_data, *args):
 		save_path = os.path.join(self.save_dir, 'test.csv')
-		# vocab_size = self.checkpoint['modules']['model']['init_args']['vocab_size']
 		num_seqs,L = whole_data.size()
 		accuracy_per_time=dict(
 							uniform=torch.zeros((L+1,L)),
@@ -106,7 +104,6 @@ class Learner(_Learner):
 		is_even_time = (torch.arange(L) % 2 == 0).unsqueeze(0)
 		encode_phase = self.checkpoint['modules']['model']['init_args'].get('encode_phase', False)
 		for sequence in whole_data.unbind(dim=0):
-			# sequence = sequence.to(self.device)
 			# Step 1: Shuffle input to remove potential correlation b/w vocab vs. order.
 			sequence = self._permutation(sequence, torch.randperm(L))
 			# Step 2: Shuffle output query
@@ -127,7 +124,6 @@ class Learner(_Learner):
 			logits = self.model(input.to(self.device), phase=phase)
 			logits = logits[:,-L:].squeeze(-1).cpu() # Bx2L -> BxL
 
-			# pos_logits,neg_logits,even_pos_logits,odd_pos_logits = logits.chunk(4, dim=0)
 			pos_logits = logits[:L,:]
 			accuracy_per_time['uniform'].scatter_add_(dim=0, index=query_order, src=(pos_logits>0).float())
 
@@ -145,99 +141,11 @@ class Learner(_Learner):
 			sub_df = pd.DataFrame((accuracy_per_time[query_type]/num_seqs).numpy())
 			sub_df['input_time'] = sub_df.index.map(lambda x: -1 if x==L else x)
 			sub_df = sub_df.melt(id_vars='input_time', var_name='output_time', value_name='accuracy')
-			# sub_df.loc[:,'output_time'] += L
 			sub_df['query_type'] = query_type
 			return sub_df
 		df = pd.concat([format_df('uniform'), format_df('half')], axis=0)
 		df.to_csv(save_path, index=False)
 
-	# def test(self, whole_data, batch_size):
-	# 	# vocab_size = self.checkpoint['modules']['model']['init_args']['vocab_size']
-	# 	num_seqs,L = whole_data.size()
-	# 	def _reduplication(sequence):
-	# 		query_order = torch.arange(L,device=sequence.device).unsqueeze(0).expand_as(sequence)
-	# 		return query_order,self._permutation(sequence, query_order)
-	# 	def _palindrome(sequence):
-	# 		query_order = torch.arange(L-1,-1,-1,device=sequence.device).unsqueeze(0).expand_as(sequence)
-	# 		return query_order,self._permutation(sequence, query_order)
-	# 	def _center_flip(sequence):
-	# 		query_order1 = torch.arange(L//2-1,-1,-1,device=sequence.device)
-	# 		query_order2 = torch.arange(L-1,L//2-1,-1,device=sequence.device)
-	# 		query_order = torch.cat([query_order1,query_order2], dim=-1).unsqueeze(0).expand_as(sequence)
-	# 		return query_order,self._permutation(sequence, query_order)
-	# 	tast2info = dict(random=dict(accuracy_per_time=dict(
-	# 									all_pos=0.0,
-	# 									half_pos=0.0,
-	# 									half_neg=0.0,
-	# 									), ordering=self._reshuffle),
-	# 							reduplication=dict(accuracy_per_time=dict(
-	# 									all_pos=0.0,
-	# 									half_pos=0.0,
-	# 									half_neg=0.0,
-	# 									), ordering=_reduplication),
-	# 							palindrome=dict(accuracy_per_time=dict(
-	# 									all_pos=0.0,
-	# 									half_pos=0.0,
-	# 									half_neg=0.0,
-	# 									), ordering=_palindrome),
-	# 							center_flip=dict(accuracy_per_time=dict(
-	# 									all_pos=0.0,
-	# 									half_pos=0.0,
-	# 									half_neg=0.0,
-	# 									), ordering=_center_flip))
-	# 	accuracy_per_time_neg = 0.0
-	# 	self.model.eval()
-	# 	is_even_time = (torch.arange(L, device=self.device) % 2 == 0).unsqueeze(0)
-	# 	def _eval(input):
-	# 		with torch.no_grad():
-	# 			logits = self.model(input)
-	# 		logits = logits[:,-L:].squeeze(-1) # Bx2L -> BxL
-	# 		return logits
-
-	# 		# is_correct = logits<=0 if is_neg else logits>0 # NOTE: This is in the output order.
-	# 		# return is_correct
-	# 	for sequence in whole_data.split(batch_size, dim=0):
-	# 		sequence = sequence.to(self.device)
-	# 		# NOTE: Test on all neg queries.
-	# 		_,neg_query = self._replace(sequence, unmask=torch.zeros_like(sequence, dtype=torch.bool))
-	# 		input = torch.cat([sequence,neg_query], dim=1)
-	# 		accuracy_per_time_neg += ((_eval(input)<=0).float().sum(dim=0)/num_seqs).cpu()
-
-	# 		for task,info in tast2info.items():
-	# 			query_order,pos_query = info['ordering'](sequence)
-	# 			# NOTE All unreplaced.
-	# 			input = torch.cat([sequence,pos_query], dim=1)
-	# 			is_correct = _eval(input)>0
-	# 			is_correct = self._inv_permutation(is_correct, query_order) # -> back to the input order.
-	# 			info['accuracy_per_time']['all_pos'] += (is_correct.float().sum(dim=0)/num_seqs).cpu()
-
-	# 			even_pos_query = pos_query.where(is_even_time, neg_query)
-	# 			input = torch.cat([sequence,even_pos_query], dim=1)
-	# 			logits_even_pos = _eval(input)
-	# 			odd_pos_query = pos_query.where(~is_even_time, neg_query)
-	# 			input = torch.cat([sequence,odd_pos_query], dim=1)
-	# 			logits_odd_pos = _eval(input)
-	# 			is_correct_half_pos = logits_even_pos.where(is_even_time, logits_odd_pos)>0
-	# 			is_correct_half_pos = self._inv_permutation(is_correct_half_pos, query_order) # -> back to the input order.
-	# 			info['accuracy_per_time']['half_pos'] += (is_correct_half_pos.float().sum(dim=0)/num_seqs).cpu()
-	# 			is_correct_half_neg = logits_even_pos.where(~is_even_time, logits_odd_pos)<=0
-	# 			info['accuracy_per_time']['half_neg'] += (is_correct_half_neg.float().sum(dim=0)/num_seqs).cpu()
-
-	# 	for task,info in tast2info.items():
-	# 		for target_type,accuracy_per_time in info['accuracy_per_time'].items():
-	# 			for t,value in enumerate(accuracy_per_time.tolist()):
-	# 				if target_type=='all_pos':
-	# 					self.logger.info('Test accuracy of {task} (w/ all positive target) on input at t={t}: {value}'.format(
-	# 									t=t,value=value,task=task))
-	# 				elif target_type=='half_pos':
-	# 					self.logger.info('Test accuracy of {task} (w/ half positive target) on input at t={t}: {value}'.format(
-	# 										t=t,value=value,task=task))
-	# 				else:
-	# 					self.logger.info('Test accuracy of {task} (w/ half positive target) on distractor output at t={t}: {value}'.format(
-	# 									t=t,value=value,task=task))
-	# 	for t,value in enumerate(accuracy_per_time_neg.tolist()):
-	# 		self.logger.info('Test accuracy on full-distractor output at t={t}: {value}'.format(
-	# 								t=t,value=value))
 
 
 
@@ -251,15 +159,13 @@ if __name__=='__main__':
 
 	parser.add_argument('--encode_inout_phase', action='store_true', help='Provide the model with an auxiliary input sequence binary-encoding the input vs. output phase.')
 
-	parser.add_argument('--model_name', type=str, required=True, choices=['RNN','GRU','LSTM','Transformer','S4','HiPPO','Mamba'], help='Type of sequence model.')
+	parser.add_argument('--model_name', type=str, required=True, choices=['RNN','GRU','LSTM','xLSTM','Transformer','S4','HiPPO','Mamba'], help='Type of sequence model.')
 	parser.add_argument('--hidden_size', type=int, default=512, help='Dimensionality of hidden layer(s) in RNN/Transformer/SSM.')
-	parser.add_argument('--output_feature_size', type=int, default=32, help='Dimensionality of output feature vectors.')
-	# parser.add_argument('--embed_size', type=int, default=None, help='Dimensionality of input (& time) embeddings. Equals to hidden_size if not specified.')
 	parser.add_argument('--num_layers', type=int, default=1, help='# of layers in RNN/Transformer/SSM.')
 	parser.add_argument('--dropout', type=float, default=0.0, help='Dropout rate in RNN/Transformer/SSM.')
 
-	# Transformer
-	parser.add_argument('--nhead', type=int, default=8, help='# of attention heads of Transformer.')
+	# Transformer/xLSTM
+	parser.add_argument('--nhead', type=int, default=None, help='# of attention heads of Transformer.')
 	parser.add_argument('--dim_feedforward', type=int, default=None, help='Dimentionality of FF layers in Transformer. 4*hidden_size by default.')
 
 	# Transformer/S4
@@ -283,7 +189,6 @@ if __name__=='__main__':
 	parser.add_argument('--warmup_iters', type=int, default=0, help='# of warm-up iterations.')
 	parser.add_argument('--saving_interval', type=int, default=1, help='Intervals of logging of the learning progress.')
 	parser.add_argument('--batch_size', type=int, default=512, help='Batch size for training.')
-	# parser.add_argument('--test_batch_size', type=int, default=None, help='Batch size for testing. Same as batch_size by default.')
 	parser.add_argument('--num_workers', type=int, default=1, help='# of dataloading workers.')
 
 	parser.add_argument('--device', type=str, default='cpu', help='Device.')
@@ -310,15 +215,19 @@ if __name__=='__main__':
 				extra_input_symbols=0,
 				output_size=1,
 				encode_phase=args.encode_inout_phase,
-				# feature_size_per_label=args.output_feature_size,
-				# num_labels=args.seq_length
 			)
 	if args.model_name=='Transformer':
 		init_args.update(dict(
-			nhead=args.nhead,
+			nhead=8 if args.nhead is None else args.nhead,
 			dim_feedforward=4*args.hidden_size if args.dim_feedforward is None
 								else args.dim_feedforward,
 			activation=args.activation
+		))
+	elif args.model_name=='xLSTM':
+		init_args.update(dict(
+			nhead=4 if args.nhead is None else args.nhead,
+			dim_feedforward=2*args.hidden_size if args.dim_feedforward is None
+								else args.dim_feedforward,
 		))
 	elif args.model_name in ['S4','HiPPO','Frozen']:
 		init_args.update(dict(
