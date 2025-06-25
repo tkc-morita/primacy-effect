@@ -889,7 +889,7 @@ class SSMKernel(Kernel):
         A, P, B, V = combination(self.init, self.N, self.rank, self.n_ssm, **self.init_args)
 
         # Broadcast C to have H channels
-        if self.deterministic:
+        if self.deterministic or self.lr_dict['C']==0.0: # NOTE: Customization here.
             C = torch.zeros(self.channels, self.n_ssm, self.N, dtype=self.cdtype)
             C[:, :, :1] = 1.
             C = contract('hmn, chn -> chm', V.conj().transpose(-1, -2), C) # V^* C
@@ -1341,7 +1341,7 @@ class SSMKernelDPLR(SSMKernelDiag):
         assert self.N == P.size(-1)
         assert self.n_ssm == P.size(-2)
 
-        # NOTE: Customization for handling rea-valued SSMs
+        # NOTE: Customization for handling real-valued SSMs
         if self.is_real:
             self.register('P', P.real, self.lr_dict['A'], self.wd_dict['A'])
         else:

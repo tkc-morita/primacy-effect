@@ -40,3 +40,42 @@ class NonRepeatRandomSequence(_Base):
 				break
 		return sequence
 
+
+class AssociativeRecallDataset(_Base):
+	collate_fn = None
+	@staticmethod
+	def holdout_data(target_vocab_size, length, query_vocab_size=None, num_held_out=0,):
+		if query_vocab_size is None:
+			query_vocab_size = target_vocab_size
+		assert length%2==0, 'length must be even.'
+		assert min(target_vocab_size,query_vocab_size)*2>=length, '2*vocab_size must be at least length.'
+		held_out = AssociativeRecallDataset._sample(query_vocab_size, target_vocab_size, length).unsqueeze(0)
+		while held_out.size(0)<num_held_out:
+			candidate = AssociativeRecallDataset._sample(query_vocab_size, target_vocab_size, length).unsqueeze(0)
+			if (candidate!=held_out).any(dim=(-2,-1)).all(dim=0).item(): # check duplication
+				held_out = torch.cat([held_out,candidate], dim=0)
+		return held_out
+	
+	@staticmethod
+	def _sample(query_vocab_size, target_vocab_size, length):
+		return torch.stack([torch.randperm(query_vocab_size)[:length//2]+target_vocab_size, # starting from target_vocab_size
+							torch.randperm(target_vocab_size)[:length//2]],
+							dim=-1)
+
+	def __init__(self, target_vocab_size, length, query_vocab_size=None, held_out=None, **kwargs):
+		super().__init__(**kwargs)
+		if query_vocab_size is None:
+			query_vocab_size = target_vocab_size
+		assert length%2==0, 'length must be even.'
+		assert min(target_vocab_size,query_vocab_size)*2>=length, '2*vocab_size must be at least length.'
+		self.query_vocab_size = query_vocab_size
+		self.target_vocab_size = target_vocab_size
+		self.length = length
+		self.held_out = held_out
+
+	def __getitem__(self, ix):
+		while True: # Rejection sampling
+			sequence = self._sample(self.query_vocab_size, self.target_vocab_size, self.length)
+			if self.held_out is None or (sequence!=self.held_out).any(dim=(-2,-1)).all(dim=0).item():
+				break
+		return sequence
